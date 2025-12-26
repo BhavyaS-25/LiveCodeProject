@@ -7,6 +7,7 @@ export default function FileEditorPage({
 }: {
   params: Promise<{ projectId: string; fileId: string }>;
 }) {
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const { projectId, fileId } = use(params);
   const [content, setContent] = useState("");
   const [status, setStatus] = useState("connecting");
@@ -42,9 +43,13 @@ export default function FileEditorPage({
       setStatus("disconnected");
     };
 
-    return () => ws.close();
-  }, [projectId, fileId]);
-
+return () => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    ws.close();
+  };
+}, [projectId, fileId]);
   return (
     <div style={{ padding: 40 }}>
       <h1>Editing File {fileId}</h1>
@@ -53,20 +58,23 @@ export default function FileEditorPage({
       <textarea
         value={content}
         onChange={(e) => {
-          const newValue = e.target.value;
-          setContent(newValue);
-
-          const ws = socketRef.current;
-          if (ws && ws.readyState === WebSocket.OPEN) {
+        const newValue = e.target.value;
+        setContent(newValue);
+        if (debounceTimerRef.current) {
+            clearTimeout(debounceTimerRef.current);
+        }
+        debounceTimerRef.current = setTimeout(() => {
+        const ws = socketRef.current;
+        if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(
-              JSON.stringify({
+                JSON.stringify({
                 type: "edit",
                 content: newValue,
-              })
+                })
             );
-          }
-        }}
-        style={{ width: "100%", height: 300 }}
+        }
+    }, 200); 
+    }} style={{ width: "100%", height: 300 }}
       />
     </div>
   );
