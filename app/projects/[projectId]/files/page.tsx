@@ -13,6 +13,7 @@ export default function FilesPage({
 }: {
   params: Promise<{ projectId: string }>;
 }) {
+  const [projectName, setProjectName] = useState<string>("");
   const { projectId } = use(params);
   const [files, setFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,6 +29,21 @@ export default function FilesPage({
       window.location.href = "/login";
       return;
     }
+    fetch(`http://localhost:8000/projects/${projectId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+      .then((res) => {
+      if (!res.ok) throw new Error("Failed to fetch project");
+        return res.json();
+    })
+      .then((data) => {
+        setProjectName(data.name);
+    })
+      .catch((err) => {
+        console.error(err);
+    });
 
     fetch(`http://localhost:8000/projects/${projectId}/files`, {
       headers: {
@@ -146,10 +162,16 @@ export default function FilesPage({
   }
 
   return (
+    
     <div style={{ padding: 40 }}>
-      <h1>Files</h1>
+      <h1>{projectName || "Project"}</h1>
+      <p style={{ color: "#666", marginBottom: 20 }}>
+       Files in this project
+      </p>
 
-      <div style={{ marginBottom: 20 }}>
+
+
+      <div style={{ marginBottom: 20 }}> 
         <input
           placeholder="New file name"
           value={newFileName}

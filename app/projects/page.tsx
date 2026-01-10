@@ -1,20 +1,24 @@
 "use client";
 
-import { create } from "domain";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 type Project = {
     id: number;
     name: string;
-    owner: number;
+    owner_id: number;
 };
 
 export default function ProjectsPage() {
     const [projects, setProjects] = useState<Project[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [newProject, setNewProject] = useState("")
-    const [creating, setCreating] = useState(false)
+    const [newProject, setNewProject] = useState("");
+    const [creating, setCreating] = useState(false);
+    const [memberInputs, setMemberInputs] = useState<Record<number, string>>({});
+    const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+
+
 
     useEffect(() => {
         const token = localStorage.getItem("token");
@@ -28,7 +32,9 @@ export default function ProjectsPage() {
                     headers: {
                         Authorization: `Bearer ${token}`,
                     },
-                });
+                    
+                }
+            );
                 if (!res.ok) {
                     throw new Error("failed to fetch projects.");
                 }
@@ -38,10 +44,59 @@ export default function ProjectsPage() {
                 setError(err.message || "Something went wrong")
             } finally {
                 setLoading(false)
+
             }
         }
         fetchProjects();
     }, []);
+    useEffect(() => {
+        const token = localStorage.getItem("token");
+        if (!token) return;
+
+        fetch("http://localhost:8000/auth/me", {
+            headers: { Authorization: `Bearer ${token}` },
+        })
+            .then((res) => res.json())
+            .then((data) => setCurrentUserId(data.id));
+        }, []);
+
+    async function addMember(projectId: number, username: string) {
+        const token = localStorage.getItem("token");
+        if (!token) {
+            alert("Not authenticated");
+            return;
+        }
+        const res = await fetch(
+            `http://localhost:8000/projects/${projectId}/members?username=${encodeURIComponent(
+            username
+            )}`,
+            {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+            }
+        );
+        if (!res.ok) {
+            const error = await res.json();
+            throw new Error(error.detail || "Failed to add member");
+        }
+        return await res.json();
+    }
+    async function deleteProject(projectId: number) {
+        const token = localStorage.getItem("token");
+        if (!token) throw new Error("Not authenticated");
+
+        const res = await fetch(`http://localhost:8000/projects/${projectId}`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.detail || "Failed to delete project");
+        }
+        }
 
     async function createProject() {
         const token = localStorage.getItem("token");
@@ -105,12 +160,57 @@ export default function ProjectsPage() {
 
             {projects.length === 0 && <p> No projects yet.</p>}
             
-            <ul>
-                {projects.map((project) => (
-                    <li key = {project.id}>
-                        {project.name}
-                    </li>
-                ))}
+           <ul>
+            {projects.map((project) => (
+                <li key={project.id} style={{ listStyle: "none", marginBottom: 12 }}>
+                <Link
+                    href={`/projects/${project.id}/files`}
+                    style={{
+                    display: "block",
+                    padding: 12,
+                    border: "1px solid #ccc",
+                    textDecoration: "none",
+                    color: "white",
+                    }}
+                >
+                    <strong>{project.name}</strong>
+                </Link>
+                    {project.owner_id === currentUserId && (
+                        <button
+                            style={{ marginLeft: 10, color: "red" }}
+                            onClick={async () => {
+                            if (!confirm("Are you sure you want to delete this project?")) return;
+                            await deleteProject(project.id);
+                            setProjects((prev) => prev.filter((p) => p.id !== project.id));
+                            }}
+                        >
+                            Delete
+                        </button>
+                        )}
+                <input
+                    placeholder="Username"
+                    value={memberInputs[project.id] || ""}
+                    onChange={(e) =>
+                        setMemberInputs((prev) => ({
+                        ...prev,
+                        [project.id]: e.target.value,
+                        }))
+                    }
+                    />
+                    <button
+                        onClick={async () => {
+                            try {
+                            await addMember(project.id, memberInputs[project.id]);
+                            alert("Member added!");
+                            } catch (err: any) {
+                            alert(err.message);
+                            }
+                        }}
+                        >
+                        Add User
+                        </button>
+                </li>
+            ))}
             </ul>
         </div>
     )
