@@ -1,0 +1,98 @@
+.page {
+  min-height: 100vh;
+  background: #0f1115;
+  color: #e6e6eb;
+  padding: 40px 24px;
+}
+
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.title {
+  font-size: 28px;
+  font-weight: 600;
+}
+
+.subtitle {
+  color: #9aa0aa;
+  margin-bottom: 24px;
+}
+
+.createRow {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.input {
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #1a1d24;
+  border: 1px solid #2a2f3a;
+  color: #e6e6eb;
+}
+
+.primaryButton {
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #7aa2f7;
+  color: #1a1c21;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+}
+
+.fileItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #1a1d24;
+  border: 1px solid #2a2f3a;
+  margin-bottom: 10px;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.fileItem:hover {
+  background: #222634;
+  transform: translateY(-1px);
+}
+
+.fileMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fileLink {
+  color: #e6e6eb;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.fileLink:hover {
+  text-decoration: underline;
+}
+
+.badge {
+  font-size: 12px;
+  width: fit-content;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: #161821;
+  border: 1px solid #2a2f3a;
+  color: #9aa0aa;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.danger {
+  color: #f7768e;
+}

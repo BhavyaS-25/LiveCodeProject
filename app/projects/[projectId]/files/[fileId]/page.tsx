@@ -29,6 +29,7 @@ export default function FileEditorPage({
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const { projectId, fileId } = use(params);
   const [content, setContent] = useState("");
+  const [fileName, setFileName] = useState<string>("");
   const socketRef = useRef<WebSocket | null>(null);
   const othersEditing =
   currentUser
@@ -45,7 +46,27 @@ export default function FileEditorPage({
   const [activeFileId, setActiveFileId] = useState<number | null>(null);
 
 
-
+  function getLanguageFromFilename(filename: string) {
+    const ext = filename.split(".").pop();
+    switch (ext) {
+      case "js":
+        return "javascript";
+      case "ts":
+        return "typescript";
+      case "py":
+        return "python";
+      case "java":
+        return "java";
+      case "json":
+        return "json";
+      case "html":
+        return "html";
+      case "css":
+        return "css";
+      default:
+        return "plaintext";
+    }
+  }
   useEffect(() => {
     currentUserRef.current = currentUser;
   }, [currentUser]);
@@ -102,28 +123,7 @@ function getColorForUser(username: string) {
   }
   return userColorsRef.current[username];
 }
-function getLanguageFromFilename(filename: string) {
-  const ext = filename.split(".").pop();
 
-  switch (ext) {
-    case "js":
-      return "javascript";
-    case "ts":
-      return "typescript";
-    case "py":
-      return "python";
-    case "java":
-      return "java";
-    case "json":
-      return "json";
-    case "html":
-      return "html";
-    case "css":
-      return "css";
-    default:
-      return "plaintext";
-  }
-}
 
 async function openFile(fileId: number, name: string) {
   const token = localStorage.getItem("token");
@@ -168,6 +168,7 @@ async function openFile(fileId: number, name: string) {
     })
     .then((data) => {
       setContent(data.content);
+      setFileName(data.name)
     })
     .catch((err) => {
       console.error(err);
@@ -329,7 +330,7 @@ async function openFile(fileId: number, name: string) {
     
       <Editor
       height="400px"
-      language="python" 
+      language={getLanguageFromFilename(fileName)}
       value={content}
       theme="vs-dark"
       onMount={(editor) => {

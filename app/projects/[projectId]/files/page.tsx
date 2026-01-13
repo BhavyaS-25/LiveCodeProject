@@ -2,17 +2,21 @@
 
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import styles from "./filesPage.module.css"; 
 
 type File = {
   id: number;
   name: string;
 };
 
+
 export default function FilesPage({
   params,
 }: {
   params: Promise<{ projectId: string }>;
 }) {
+  const searchParams = useSearchParams();
   const [projectName, setProjectName] = useState<string>("");
   const { projectId } = use(params);
   const [files, setFiles] = useState<File[]>([]);
@@ -21,9 +25,35 @@ export default function FilesPage({
   const [newFileName, setNewFileName] = useState("");
   const [editingFileId, setEditingFileId] = useState<number | null>(null);
   const [editingName, setEditingName] = useState("");
+ 
 
+  function getLanguageFromFilename(filename: string) {
+    const ext = filename.split(".").pop()?.toLowerCase();
+
+    switch (ext) {
+      case "js":
+        return "JavaScript";
+      case "ts":
+        return "TypeScript";
+      case "py":
+        return "Python";
+      case "java":
+        return "Java";
+      case "json":
+        return "JSON";
+      case "html":
+        return "HTML";
+      case "css":
+        return "CSS";
+      case "md":
+        return "Markdown";
+      default:
+        return "Plain Text";
+    }
+}
 
   useEffect(() => {
+    
     const token = localStorage.getItem("token");
     if (!token) {
       window.location.href = "/login";
@@ -64,7 +94,7 @@ export default function FilesPage({
         setLoading(false);
       });
   }, [projectId]);
-
+  
   const createFile = async () => {
     if (!newFileName.trim()) return;
 
@@ -162,22 +192,26 @@ export default function FilesPage({
   }
 
   return (
-    
-    <div style={{ padding: 40 }}>
-      <h1>{projectName || "Project"}</h1>
-      <p style={{ color: "#666", marginBottom: 20 }}>
-       Files in this project
-      </p>
+    <div className = {styles.page}>
+      <div className = {styles.container}>
+        <h1 className= {styles.title}>{projectName || "Project"}</h1>
+        <p className= {styles.subtitle}>
+        Files in this project
+        </p>
 
 
 
-      <div style={{ marginBottom: 20 }}> 
+      <div className = {styles.createRow}> 
         <input
-          placeholder="New file name"
-          value={newFileName}
-          onChange={(e) => setNewFileName(e.target.value)}
+          className = {styles.input}
+          placeholder = "New file name"
+          value = {newFileName}
+          onChange = {(e) => setNewFileName(e.target.value)}
+
         />
-        <button onClick={createFile} style={{ marginLeft: 8 }}>
+        <button 
+            className = {styles.primaryButton}
+            onClick={createFile}>
           Create
         </button>
       </div>
@@ -186,41 +220,42 @@ export default function FilesPage({
 
       <ul>
         {files.map((file) => (
-          <li key={file.id} style= {{ display: "flex", gap: 10, alignItems: "center"}}>
-            {editingFileId === file.id ? (
-              <>
-              <input
-                value={editingName}
-                onChange={(e) => setEditingName(e.target.value)}
-                onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  renameFile(file.id);
-                }
-                if (e.key === "Escape") {
-                  setEditingFileId(null);
-                }
-              }}
-            autoFocus
-          />
-        <button onClick={() => renameFile(file.id)}>Save</button>
-      </>
-      ) : (
-      <>
-      <Link href={`/projects/${projectId}/files/${file.id}`}>
-      {file.name}
-      </Link>
-      <button
-        onClick={() => {
-          setEditingFileId(file.id);
-          setEditingName(file.name);
-        }}
-      > Rename </button></>
-)}
+          <li key={file.id} className={styles.fileItem}>
+            <div className={styles.fileMeta}>
+              <Link
+                href={`/projects/${projectId}/files/${file.id}`}
+                className={styles.fileLink}
+              >
+                {file.name}
+              </Link>
 
-            <button onClick={() => deleteFile(file.id)} style = {{color: "red"}}> Delete </button>
+              <span className={styles.badge}>
+                {getLanguageFromFilename(file.name)}
+              </span>
+            </div>
+
+            <div className={styles.actions}>
+              <button
+                onClick={() => {
+                  setEditingFileId(file.id);
+                  setEditingName(file.name);
+                }}
+              >
+                Rename
+              </button>
+
+              <button
+                className={styles.danger}
+                onClick={() => deleteFile(file.id)}
+              >
+                Delete
+              </button>
+            </div>
           </li>
+
         ))}
       </ul>
     </div>
+  </div>
   );
 }
