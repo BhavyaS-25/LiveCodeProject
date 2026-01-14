@@ -78,6 +78,27 @@
   text-decoration: underline;
 }
 
+.fileCard {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  padding: 14px 16px;
+  margin-bottom: 12px;
+
+  background: #1a1d24;
+  border: 1px solid #2a2f3a;
+  border-radius: 12px;
+
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.fileCard:hover {
+  background: #222634;
+  transform: translateY(-2px);
+}
+
+
 .badge {
   font-size: 12px;
   width: fit-content;

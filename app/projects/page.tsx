@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import styles from "./projects.module.css"; 
 
 type Project = {
     id: number;
@@ -17,9 +18,11 @@ export default function ProjectsPage() {
     const [creating, setCreating] = useState(false);
     const [memberInputs, setMemberInputs] = useState<Record<number, string>>({});
     const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+    const [shareProjectId, setShareProjectId] = useState<number | null>(null);
+    const [shareUsername, setShareUsername] = useState("");
 
 
-
+    
     useEffect(() => {
         const token = localStorage.getItem("token");
         if (!token) {
@@ -142,9 +145,9 @@ export default function ProjectsPage() {
         );
     }
     return (
-        <div style = {{padding: 40}}> 
-            <h1> My Projects </h1>
-            <div style= {{ marginBottom: 20 }}>
+        <div className = {styles.page}> 
+            <h1 className = {styles.title}> My Projects </h1>
+            <div className = {styles.createRow}>
                 <input placeholder = "New project name"
                 value= {newProject}
                 onChange = {(e) => setNewProject(e.target.value)}
@@ -152,7 +155,7 @@ export default function ProjectsPage() {
             <button
                 onClick={createProject}
                 disabled={creating}
-                style={{ marginLeft: 10}}
+                className= {styles.createBtn}
             >
                 {creating ? "Creating..." : "Create Project"}
             </button>
@@ -160,24 +163,18 @@ export default function ProjectsPage() {
 
             {projects.length === 0 && <p> No projects yet.</p>}
             
-           <ul>
+           <ul className= {styles.grid}>
             {projects.map((project) => (
-                <li key={project.id} style={{ listStyle: "none", marginBottom: 12 }}>
+                <li key={project.id} className= {styles.card}>
                 <Link
                     href={`/projects/${project.id}/files`}
-                    style={{
-                    display: "block",
-                    padding: 12,
-                    border: "1px solid #ccc",
-                    textDecoration: "none",
-                    color: "white",
-                    }}
+                    className= {styles.projectLink}
                 >
                     <strong>{project.name}</strong>
                 </Link>
                     {project.owner_id === currentUserId && (
                         <button
-                            style={{ marginLeft: 10, color: "red" }}
+                            className= {styles.deleteBtn}
                             onClick={async () => {
                             if (!confirm("Are you sure you want to delete this project?")) return;
                             await deleteProject(project.id);

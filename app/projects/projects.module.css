@@ -1,0 +1,83 @@
+.page {
+  min-height: 100vh;
+  background: #0f1115;
+  color: #e6e6eb;
+  padding: 40px 24px;
+}
+
+.title {
+  font-size: 30px;
+  padding: 10px;
+  font-weight: 600px;
+  margin-bottom: 24px;
+}
+
+.createRow {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 32px;
+}
+
+.input {
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #1a1d24;
+  border: 1px solid #2a2f3a;
+  color: #e6e6eb;
+}
+
+.createBtn {
+  background: #7aa2f7;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+  list-style: none;
+  padding: 0;
+}
+
+.card {
+  background: #1a1d24;
+  border: 1px solid #2a2f3a;
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.card:hover {
+  background: #222634;
+  transform: translateY(-2px);
+}
+
+.projectLink {
+  color: #e6e6eb;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.deleteBtn {
+  background: none;
+  border: none;
+  color: #f7768e;
+  cursor: pointer;
+}
+
+.loading {
+  padding: 40px;
+}
+
+.error {
+  padding: 40px;
+  color: #f7768e;
+}
