@@ -18,7 +18,8 @@ export default function ProjectsPage() {
     const [creating, setCreating] = useState(false);
     const [memberInputs, setMemberInputs] = useState<Record<number, string>>({});
     const [currentUserId, setCurrentUserId] = useState<number | null>(null);
-    const [shareProjectId, setShareProjectId] = useState<number | null>(null);
+    const [shareOpen, setShareOpen] = useState(false);
+    const [shareProjectId, setShareProjectId] = useState("");
     const [shareUsername, setShareUsername] = useState("");
 
 
@@ -98,8 +99,8 @@ export default function ProjectsPage() {
         if (!res.ok) {
             const err = await res.json();
             throw new Error(err.detail || "Failed to delete project");
-        }
-        }
+            }
+     }
 
     async function createProject() {
         const token = localStorage.getItem("token");
@@ -131,6 +132,41 @@ export default function ProjectsPage() {
             setCreating(false);
         }
     }
+    async function shareProject() {
+        const token = localStorage.getItem("token");
+        if (!token) return;
+
+        if (!shareProjectId || !shareUsername.trim()) {
+            alert("Please enter both Project ID and Username");
+            return;
+        }
+
+        const res = await fetch(
+            `http://localhost:8000/projects/${Number(
+            shareProjectId
+            )}/members?username=${encodeURIComponent(shareUsername)}`,
+            {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+            }
+        );
+
+        if (!res.ok) {
+            const err = await res.json();
+            alert(err.detail || "Failed to share project");
+            return;
+        }
+
+        setShareOpen(false);
+        setShareUsername("");
+        setShareProjectId("");
+        alert("Project shared!");
+        }
+
+     
+
     if (loading) {
         return <p style = {{ padding: 40 }}>Loading projects...</p>
     }
@@ -145,70 +181,112 @@ export default function ProjectsPage() {
         );
     }
     return (
-        <div className = {styles.page}> 
-            <h1 className = {styles.title}> My Projects </h1>
-            <div className = {styles.createRow}>
-                <input placeholder = "New project name"
-                value= {newProject}
-                onChange = {(e) => setNewProject(e.target.value)}
-            />
-            <button
-                onClick={createProject}
-                disabled={creating}
-                className= {styles.createBtn}
-            >
-                {creating ? "Creating..." : "Create Project"}
-            </button>
-            </div>
+    <div className="app-layout">
+        <aside className="sidebar">
+            <h2 className="logo">LiveCode</h2>
 
-            {projects.length === 0 && <p> No projects yet.</p>}
-            
-           <ul className= {styles.grid}>
-            {projects.map((project) => (
-                <li key={project.id} className= {styles.card}>
-                <Link
-                    href={`/projects/${project.id}/files`}
-                    className= {styles.projectLink}
+            <nav className="nav">
+            <a className="nav-item active">Projects</a>
+            <a className="nav-item">Shared</a>
+            <a className="nav-item">Settings</a>
+            </nav>
+        </aside>
+
+        <main className="main-content">
+        <div className = {styles.page}> 
+            <header> 
+                <h1 className = {styles.title}> My Projects </h1>
+                <p> Create, manage, and share your work </p> 
+            </header> 
+
+            <section className={styles.actions}>
+                <input
+                    className={styles.input}
+                    placeholder="New project name"
+                    value={newProject}
+                    onChange={(e) => setNewProject(e.target.value)}
+                />
+
+                <button
+                    className={styles.primaryBtn}
+                    onClick={createProject}
+                    disabled={creating}
                 >
-                    <strong>{project.name}</strong>
-                </Link>
+                    {creating ? "Creating..." : "+ Create"}
+                </button>
+
+                <button
+                    className={styles.secondaryBtn}
+                    onClick={() => setShareOpen(true)}
+                >
+                    Share
+                </button>
+            </section>
+
+            <section>
+            {projects.length === 0 && <p>No projects yet.</p>}
+
+            <ul className={styles.grid}>
+                {projects.map((project) => (
+                <li key={project.id} className={styles.card}>
+                    <Link
+                    href={`/projects/${project.id}/files`}
+                    className={styles.cardMain}
+                    >
+                    <h3>{project.name}</h3>
+                    <span className={styles.meta}>Project #{project.id}</span>
+                    </Link>
+
+                    <div className={styles.cardActions}>
+                    <button className={styles.iconBtn}>Rename</button>
+
                     {project.owner_id === currentUserId && (
                         <button
-                            className= {styles.deleteBtn}
-                            onClick={async () => {
-                            if (!confirm("Are you sure you want to delete this project?")) return;
-                            await deleteProject(project.id);
-                            setProjects((prev) => prev.filter((p) => p.id !== project.id));
-                            }}
-                        >
-                            Delete
-                        </button>
-                        )}
-                <input
-                    placeholder="Username"
-                    value={memberInputs[project.id] || ""}
-                    onChange={(e) =>
-                        setMemberInputs((prev) => ({
-                        ...prev,
-                        [project.id]: e.target.value,
-                        }))
-                    }
-                    />
-                    <button
+                        className={styles.dangerBtn}
                         onClick={async () => {
-                            try {
-                            await addMember(project.id, memberInputs[project.id]);
-                            alert("Member added!");
-                            } catch (err: any) {
-                            alert(err.message);
-                            }
+                            if (!confirm("Delete this project?")) return;
+                            await deleteProject(project.id);
+                            setProjects((prev) =>
+                            prev.filter((p) => p.id !== project.id)
+                            );
                         }}
                         >
-                        Add User
+                        Delete
                         </button>
+                    )}
+                    </div>
                 </li>
-            ))}
+                ))}
             </ul>
-        </div>
+            </section>
+
+            {shareOpen && (
+                <div className={styles.modalBackdrop}>
+                    <div className={styles.modal}>
+                    <h3>Share Project</h3>
+
+                    <input
+                        placeholder="Project ID"
+                        value={shareProjectId}
+                        onChange={(e) => setShareProjectId(e.target.value)}
+                    />
+
+                    <input
+                        placeholder="Username"
+                        value={shareUsername}
+                        onChange={(e) => setShareUsername(e.target.value)}
+                    />
+
+                    <div className={styles.modalActions}>
+                        <button onClick={() => setShareOpen(false)}>Cancel</button>
+                        <button onClick={shareProject}>Share
+                        </button>
+                        </div>
+                    </div>
+                </div>
+                )}
+            </div>
+        </main>
+    </div>
     )
 }

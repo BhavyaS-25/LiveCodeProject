@@ -1,0 +1,148 @@
+.editorPage {
+  display: flex;
+  height: calc(100vh - 40px);
+  background: #0f1115;
+  color: #e6e6eb;
+}
+
+
+.fileSidebar {
+  width: 240px;
+  background: #1a1d24;
+  border-right: 1px solid #2a2f3a;
+  padding: 16px;
+}
+
+.fileSidebar h3 {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: #9aa0aa;
+}
+
+
+.editorArea {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+
+.editorHeader {
+  height: 48px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #2a2f3a;
+  background: #12151b;
+}
+
+.fileItem {
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.fileItem:hover {
+  background: #2a2f3a;
+}
+
+.fileItem.active {
+  background: #7aa2f7;
+  color: #0f1115;
+  font-weight: 600;
+}
+
+.editor {
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 1px #2a2f3a;
+}
+
+.editor:focus-within {
+  box-shadow:
+    0 0 0 1px #7aa2f7,
+    0 0 18px rgba(122, 162, 247, 0.25);
+}
+
+.editorPage {
+  display: flex;
+  height: 100vh;
+  background: #0f1115;
+  color: #e6e6eb;
+}
+
+.fileSidebar {
+  width: 240px;
+  background: #12141b;
+  border-right: 1px solid #2a2f3a;
+  padding: 16px;
+}
+
+.editorMain {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.editorHeader {
+  padding: 16px 20px;
+  border-bottom: 1px solid #2a2f3a;
+}
+
+.statusBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 20px;
+  font-size: 13px;
+  border-bottom: 1px solid #2a2f3a;
+  background: #0f1115;
+}
+
+.leftStatus {
+  display: flex;
+  gap: 16px;
+}
+
+.connected {
+  color: #33ae4c;
+}
+
+.disconnected {
+  color: #f7768e;
+}
+
+.editor {
+  flex: 1;
+}
+
+.fileSidebar {
+  width: 220px;
+  background: #0f172a;
+  color: white;
+  padding: 16px;
+  border-right: 1px solid #1e293b;
+}
+
+.fileList {
+  list-style: none;
+  padding: 0;
+  margin-top: 12px;
+}
+
+.fileItem {
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.fileItem:hover {
+  background: #1e293b;
+}
+
+.activeFile {
+  background: #2563eb;
+  font-weight: 600;
+}

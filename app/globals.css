@@ -74,3 +74,50 @@ body {
   border-left: 2px solid #ff5f56;
   margin-left: -1px;
 }
+
+.app-layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 240px;
+  background: #0a4c7c;
+  border-right: 1px solid #000000;
+  padding: 24px;
+  color: #ffffff;
+}
+
+.logo {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 32px;
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.nav-item {
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: #9aa0aa;
+  cursor: pointer;
+}
+
+.nav-item:hover {
+  background: #1a1d24;
+  color: #fff;
+}
+
+.nav-item.active {
+  background: #7aa2f7;
+  color: #0f1115;
+}
+
+.main-content {
+  flex: 1;
+  overflow-y: auto;
+}

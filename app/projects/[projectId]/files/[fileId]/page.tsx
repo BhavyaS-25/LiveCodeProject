@@ -4,6 +4,9 @@
 import { useEffect, useRef, useState, use } from "react";
 import Editor from "@monaco-editor/react";
 import * as monaco from "monaco-editor";
+import styles from "./editorPage.module.css"; 
+import { useRouter } from "next/navigation";
+
 
 
 export default function FileEditorPage({
@@ -11,6 +14,7 @@ export default function FileEditorPage({
 }: {
   params: Promise<{ projectId: string; fileId: string }>;
 }) {
+  const router = useRouter();
   const [connectionStatus, setConnectionStatus] = useState<
   "connecting" | "connected" | "disconnected"
 >("connecting");
@@ -41,7 +45,11 @@ export default function FileEditorPage({
     content: string;
     language: string;
   };
-
+  type ProjectFile = {
+    id: number;
+    name: string;
+  }
+  const [files, setFiles] = useState<ProjectFile[]>([]);
   const [openTabs, setOpenTabs] = useState<FileTab[]>([]);
   const [activeFileId, setActiveFileId] = useState<number | null>(null);
 
@@ -70,6 +78,24 @@ export default function FileEditorPage({
   useEffect(() => {
     currentUserRef.current = currentUser;
   }, [currentUser]);
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    fetch(`http://localhost:8000/projects/${projectId}/files`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    .then((res) => {
+      if (!res.ok) throw new Error("Failed to fetch files");
+      return res.json();
+    })
+    .then((data) => {
+      setFiles(data);
+    })
+    .catch(console.error);
+  }, [projectId])
+
   useEffect(() => {
   const token = localStorage.getItem("token");
   if (!token) {
@@ -152,6 +178,8 @@ async function openFile(fileId: number, name: string) {
   });
 
   setActiveFileId(fileId);
+  setContent(data.content);
+  setFileName(name);
 }
 
   fetch(
@@ -279,57 +307,58 @@ async function openFile(fileId: number, name: string) {
 }, [projectId, fileId]);
 
   return (
-    <div style={{ padding: 40 }}>
-      <h1>Editing File {fileId}</h1>
-      <p>Status: {connectionStatus}</p>
-      {currentUser && editors.includes(currentUser) && (
-        <p style={{ color: "green" }}>
-        You are editing this file
-      </p>
-    )}
-      {othersEditing.length > 0 && (
-        <p style={{ color: "orange" }}>
-        Others editing: {othersEditing.join(", ")}
-      </p>
-    )}
+    <div className = {styles.editorPage}>
+      <aside className= {styles.fileSidebar}>
+        <h3> Files </h3>
+        <ul className={styles.fileList}>
+        {files.map((file) => (
+          <li
+            key={file.id}
+            className={
+              file.id === activeFileId
+                ? styles.activeFile
+                : styles.fileItem
+            }
+            onClick={() => {router.push(`/projects/${projectId}/files/${file.id}`);}}
+          >
+            {file.name}
+          </li>
+        ))}
+      </ul>
+    </aside>
 
-    {remotePending && (
-      <div style={{ margin: "8px 0", padding: 8, border: "1px solid #ccc" }}>
-        <span>New changes from others.</span>
-        <button
-          style={{ marginLeft: 8 }}
-          onClick={() => {
-            if (pendingRemoteContent !== null) setContent(pendingRemoteContent);
-            setPendingRemoteContent(null);
-            setRemotePending(false);
-            isTypingRef.current = false;
-          }}
-        >
-          Apply
-        </button>
+      <main className = {styles.editorMain}>
+        <header className = {styles.editorHeader}>
+          <h1> {fileName} </h1>
+        </header>
+
+      <div className={styles.statusBar}>
+        <div className={styles.leftStatus}>
+          <span
+            className={
+              connectionStatus === "connected"
+                ? styles.connected
+                : styles.disconnected
+            }
+          >
+            ● {connectionStatus}
+          </span>
+
+          <span className={styles.saveStatus}>
+            {saveStatus === "saving" ? "Saving…" : "Saved"}
+          </span>
+        </div>
+
+        <div className={styles.rightStatus}>
+          {othersEditing.length > 0 && (
+            <span>👥 {othersEditing.length} editing</span>
+          )}
+        </div>
       </div>
-    )}
-    <p>
-      Connection:{" "}
-      <strong
-        style={{
-          color:
-            connectionStatus === "connected" ? "green" : "red",
-        }}
-      >
-        {connectionStatus}
-      </strong>
-    </p>
 
-    <p>
-      Status:{" "}
-      <strong>
-        {saveStatus === "saving" ? "Saving…" : "Saved"}
-      </strong>
-    </p>
-    
+    <div className={styles.editor}>
       <Editor
-      height="400px"
+      height="100%"
       language={getLanguageFromFilename(fileName)}
       value={content}
       theme="vs-dark"
@@ -371,7 +400,8 @@ async function openFile(fileId: number, name: string) {
         }, 200);
       }}
     />
-
+        </div>
+      </main>
     </div>
   );
 }
