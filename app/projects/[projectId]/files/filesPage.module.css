@@ -117,3 +117,8 @@
 .danger {
   color: #f7768e;
 }
+
+.backButton {
+  background: #2563eb;
+  color: white;
+}

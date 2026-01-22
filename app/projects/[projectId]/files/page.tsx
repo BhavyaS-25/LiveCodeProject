@@ -4,6 +4,7 @@ import { useEffect, useState, use } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import styles from "./filesPage.module.css"; 
+import { useRouter } from "next/navigation";
 
 type File = {
   id: number;
@@ -16,6 +17,7 @@ export default function FilesPage({
 }: {
   params: Promise<{ projectId: string }>;
 }) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [projectName, setProjectName] = useState<string>("");
   const { projectId } = use(params);
@@ -214,6 +216,12 @@ export default function FilesPage({
             onClick={createFile}>
           Create
         </button>
+        <button 
+        className= {styles.backButton}
+        onClick={() => router.back()}>
+          ← Back
+        </button>
+
       </div>
 
       {files.length === 0 && <p>No files yet.</p>}

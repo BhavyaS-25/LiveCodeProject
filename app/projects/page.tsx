@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import styles from "./projects.module.css"; 
+import styles from "./projects.module.css";
+import { useRouter } from "next/navigation";
+
+
 
 type Project = {
     id: number;
@@ -11,6 +14,7 @@ type Project = {
 };
 
 export default function ProjectsPage() {
+
     const [projects, setProjects] = useState<Project[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -21,8 +25,15 @@ export default function ProjectsPage() {
     const [shareOpen, setShareOpen] = useState(false);
     const [shareProjectId, setShareProjectId] = useState("");
     const [shareUsername, setShareUsername] = useState("");
+    const router = useRouter();
 
 
+    useEffect(() => {
+        const token = localStorage.getItem("token");
+        if (!token) {
+            router.push("/");
+        }
+    }, [])
     
     useEffect(() => {
         const token = localStorage.getItem("token");
@@ -183,7 +194,7 @@ export default function ProjectsPage() {
     return (
     <div className="app-layout">
         <aside className="sidebar">
-            <h2 className="logo">LiveCode</h2>
+            <h2 className="logo">CodeCollab</h2>
 
             <nav className="nav">
             <a className="nav-item active">Projects</a>

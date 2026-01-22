@@ -330,6 +330,11 @@ async function openFile(fileId: number, name: string) {
       <main className = {styles.editorMain}>
         <header className = {styles.editorHeader}>
           <h1> {fileName} </h1>
+          <button 
+          className={styles.backButton}
+          onClick={() => router.back()}>
+            ← Back
+          </button>
         </header>
 
       <div className={styles.statusBar}>
