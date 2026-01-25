@@ -85,10 +85,10 @@ Watch edits and cursors sync in real time
 
 ## 🚧 Known Limitations / Future Improvements
 🔹 Run code execution (e.g., Python files)
-🔹 File creation & deletion UI
+🔹 File rename
 🔹 Better conflict resolution
 🔹 User permissions (read/write roles)
-🔹 Deployment (Docker / Vercel / Railway)
+🔹 Deployment (Docker / Vercel / Railway/ AWS)
 
 ## 📌 What This Project Demonstrates
 Full-stack system design
