@@ -51,22 +51,22 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 1. Clone the repo:
-   git clone https://github.com/BhavyaS-25/LiveCodeProject.git
+   git clone https://github.com/BhavyaS-25/LiveCodeProject.git,
    cd LiveCodeProject
 2. Setup Backend
-   cd backend
-   python -m venv venv
-   source venv/bin/activate   # macOS/Linux
-   venv\Scripts\activate      # Windows
+   cd backend,
+   python -m venv venv,
+   source venv/bin/activate   # macOS/Linux,
+   venv\Scripts\activate      # Windows,
 3. Install dependencies
-   pip install -r requirements.txt
+   pip install -r requirements.txt,
 4. Run the backend
-   uvicorn main:app --reload
-   Backend will run at http://localhost:8000
+   uvicorn main:app --reload,
+   Backend will run at http://localhost:8000,
 5. Setup Frontend
-   cd frontend-clean
-   npm install
-   npm run dev
+   cd frontend-clean,
+   npm install,
+   npm run dev,
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
