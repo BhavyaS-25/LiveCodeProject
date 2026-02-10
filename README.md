@@ -102,5 +102,13 @@ This project was built to strengthen skills in distributed systems, real-time ap
 Bhavya Shah 
 GitHub: BhavyaS-25
 
+## Screenshots
 
+<img width="1470" height="806" alt="Screenshot 2026-02-10 at 3 18 45 PM" src="https://github.com/user-attachments/assets/42e8c6d0-5626-4ce8-af99-292f8b61f2ff" />
+
+<img width="1470" height="810" alt="Screenshot 2026-02-10 at 3 19 52 PM" src="https://github.com/user-attachments/assets/3ff95294-f232-4731-be2d-bd591f826224" />
+
+<img width="1470" height="811" alt="Screenshot 2026-02-10 at 3 25 58 PM" src="https://github.com/user-attachments/assets/231c4d97-2978-46ff-a7bb-f6a890b77a21" />
+
+<img width="1470" height="846" alt="Screenshot 2026-02-10 at 3 26 16 PM" src="https://github.com/user-attachments/assets/83fc9e24-ae8c-4e0c-a125-15f742423525" />
 
