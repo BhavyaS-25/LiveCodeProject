@@ -49,3 +49,15 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Python runtime and persistent local data
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+data/
+*.sqlite3
+*.sqlite3-*
+!.env.example
+
+/public/monaco-workers/

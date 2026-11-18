@@ -166,4 +166,5 @@
 @keyframes pop {
   from { transform: scale(0.95); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
-}
+}.modal select, .modal input { width: 100%; margin: 8px 0; }
+.modalActions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }

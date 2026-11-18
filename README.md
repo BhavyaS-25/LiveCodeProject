@@ -1,114 +1,122 @@
 # CodeCollab
 
-CodeCollab is a real-time live collaborative code editor platform allowing multiple users to work on the same project/file at the same time. The platform supports file management, live cursor tracking for users and real-time updates through the use of WebSockets.
+A collaborative code workspace built with **Next.js, TypeScript, Monaco, FastAPI, WebSockets, and SQLite**. Create a project, invite another registered user, and edit shared files with presence indicators and explicit version-conflict handling.
 
-The project demonstrates full-stack development, real-time systems, and authentication workflows.
+This is a portfolio-scale application, not a distributed editor or a code-execution sandbox. The source includes the server implementation, automated regression tests, and a reproducible local setup.
 
-## Features
-- User Authentication (register + login)
-  - JWT-based auth
-- Project dashboard
-  - Create projects and manage files
-  - Navigate through files via sidebar
-- Real-Time Collaboration
-  - Live code syncing using WebSockets
-  - Presence tracking to see who is editing
-  - Colored cursor indicators   
-- Code Editor
-  - Monaco Editor to give a VS Code style
-  - Syntax higlighitng for 9 different languages
-- Auto-Save
-  Debounced edits synced to backend.
-- Clean UI
-  -  Editor is styled with both a side and status bar. 
-  
+## What works
 
-## Tech Stack
-- Frontend: Next.js, React, CSS, Type Script, Monaco Editor
-- Backend: FastAPI (Python), WebSockets, JWT Authentication, REST APIs
-- Database: (Postgres/SQLite)
+- Registration and login with salted scrypt password hashes and expiring JWTs.
+- Project ownership and membership checked by the server on REST and WebSocket access.
+- Persistent users, projects, memberships, file contents, and file versions in SQLite.
+- Project/file creation, rename, deletion, and owner-controlled project sharing.
+- File-room WebSocket synchronization, collaborator presence, and remote cursors.
+- Self-hosted Monaco editor and workers built from installed dependencies; no runtime editor CDN requirement.
+- Server-confirmed save status; stale versions are rejected rather than silently overwriting a newer save.
+- Explicit conflict choices, debounced saves, and navigation safeguards.
+- GitHub Actions checks for backend tests, lint, TypeScript, and production build.
 
-## Project Structure:
-LiveCodeProject/
-├── frontend/
-│   ├── app/
-│   │   ├── login/
-│   │   ├── projects/
-│   │   └── page.tsx
-│   ├── components/
-│   ├── styles/
-│   └── globals.css
-│
-├── backend/
-│   ├── main.py
-│   ├── auth/
-│   ├── projects/
-│   └── websocket/
-│
-└── README.md
+## Quick start
 
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+Prerequisites: **Python 3.13** and **Node.js 22+**. Run all commands from the repository root. There are no `backend/` or `frontend/` subdirectories.
 
-## Getting Started
-1. Clone the repo:
-   git clone https://github.com/BhavyaS-25/LiveCodeProject.git,
-   cd LiveCodeProject
-2. Setup Backend
-   cd backend,
-   python -m venv venv,
-   source venv/bin/activate   # macOS/Linux,
-   venv\Scripts\activate      # Windows,
-3. Install dependencies
-   pip install -r requirements.txt,
-4. Run the backend
-   uvicorn main:app --reload,
-   Backend will run at http://localhost:8000,
-5. Setup Frontend
-   cd frontend-clean,
-   npm install,
-   npm run dev,
+```sh
+git clone https://github.com/BhavyaS-25/LiveCodeProject.git
+cd LiveCodeProject
+# If reviewing the improvement PR before it is merged:
+git switch improve/recruiter-ready
+python3 -m venv .venv
+source .venv/bin/activate
+# Windows PowerShell: .venv\Scripts\Activate.ps1
+python -m pip install -r requirements-lock.txt
+npm ci
+cp .env.example .env
+# Windows PowerShell: Copy-Item .env.example .env
+```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Generate a fresh signing key locally:
 
-## Authentication Flow
-Register: POST /auth/register
-Login: POST /auth/login
+```sh
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+```
 
+Paste that value into `CODECOLLAB_SECRET_KEY=` in `.env`. Do not commit it. The backend deliberately refuses to start without a sufficiently long key. Never put a signing key in a `NEXT_PUBLIC_*` variable.
 
-## 🧪 Example Usage
-Register an account on the home page
-Login and create a project
-Add files to the project
-Open the same file in multiple browsers
-Watch edits and cursors sync in real time
+Terminal 1, from the root with the virtual environment activated:
 
+```sh
+python -m uvicorn main:app --env-file .env --host 127.0.0.1 --port 8000
+```
 
-## 🚧 Known Limitations / Future Improvements
-🔹 Run code execution (e.g., Python files)
-🔹 File rename
-🔹 Better conflict resolution
-🔹 User permissions (read/write roles)
-🔹 Deployment (Docker / Vercel / Railway/ AWS)
+Terminal 2, from the root:
 
-## 📌 What This Project Demonstrates
-Full-stack system design
-Real-time WebSocket communication
-REST + WebSocket integration
-Authentication & protected routes
-Scalable editor architecture
-This project was built to strengthen skills in distributed systems, real-time applications, and modern web development.
+```sh
+npm run dev
+```
 
-## Author 
-Bhavya Shah 
-GitHub: BhavyaS-25
+Open http://localhost:3000. API documentation: http://localhost:8000/docs. Health check: http://localhost:8000/health.
 
-## Screenshots
+### Configuration
 
-<img width="1470" height="806" alt="Screenshot 2026-02-10 at 3 18 45 PM" src="https://github.com/user-attachments/assets/42e8c6d0-5626-4ce8-af99-292f8b61f2ff" />
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `CODECOLLAB_SECRET_KEY` | Random server-only JWT signing key | Required |
+| `CODECOLLAB_DATABASE_PATH` | Persistent SQLite file | `./data/codecollab.sqlite3` |
+| `CODECOLLAB_ALLOWED_ORIGINS` | Comma-separated frontend origins, used for CORS and WebSockets | localhost and 127.0.0.1 on port 3000 |
+| `NEXT_PUBLIC_API_URL` | Browser-visible API origin | `http://localhost:8000` |
 
-<img width="1470" height="810" alt="Screenshot 2026-02-10 at 3 19 52 PM" src="https://github.com/user-attachments/assets/3ff95294-f232-4731-be2d-bd591f826224" />
+Next.js reads `.env` for frontend configuration. Restart it after changing variables. For production, `NEXT_PUBLIC_API_URL` is set at frontend build time. WebSocket URLs derive `ws`/`wss` from this origin. Local data and environment files are ignored by Git.
 
-<img width="1470" height="811" alt="Screenshot 2026-02-10 at 3 25 58 PM" src="https://github.com/user-attachments/assets/231c4d97-2978-46ff-a7bb-f6a890b77a21" />
+## Try a two-user demo
 
-<img width="1470" height="846" alt="Screenshot 2026-02-10 at 3 26 16 PM" src="https://github.com/user-attachments/assets/83fc9e24-ae8c-4e0c-a125-15f742423525" />
+1. Register an owner account, create a project, then create `hello.py`.
+2. In a private browser window, register a second account.
+3. As the owner, share the project with that account's username.
+4. Open the same file in both windows. Wait for **connected** in each.
+5. Type in one window. The other receives the saved content; the sender shows **Saved** only after the server acknowledges persistence.
+6. For a conflict demonstration, both clients send edits based on the same version. The first committed edit wins that version; the other client sees a conflict and retains its local text for review.
+7. Restart the backend. Sign in again and verify that the project/files remain.
 
+Do not type real secrets or sensitive code into a demo. There is no public hosted demo URL in this repository yet.
+
+## Run the checks
+
+```sh
+python -m pytest -q
+npm run lint
+npm run typecheck
+npm run build
+npm audit
+```
+
+`requirements.txt` and `requirements-dev.txt` list direct dependencies. `requirements-lock.txt` pins the development/test environment, including transitive packages. `package-lock.json` is used by `npm ci`. Tests create isolated temporary databases and test-only signing keys; they do not use your `.env` or local project data.
+
+The frontend includes a same-major DOMPurify override because Monaco pins an older sanitizer. Recheck that override on dependency upgrades; do not remove it without running the dependency audit and editor smoke test.
+
+## Architecture and tradeoffs
+
+See [architecture](docs/architecture.md) for the request flow, access-control model, and conflict protocol, and [security](SECURITY.md) for deployment boundaries and signing-key migration.
+
+## Repository layout
+
+```text
+app/                    Next.js routes and styles
+lib/api.ts              Shared HTTP configuration, errors, and WS URL builder
+main.py                 FastAPI REST and WebSocket application
+config.py               Server configuration validation
+database.py             SQLite schema and connections
+models.py               Validated request schemas
+ws.py                   In-process file-room/presence manager
+tests/                  API, authorization, persistence, and collaboration tests
+.github/workflows/ci.yml Automated backend/frontend checks
+.env.example            Configuration template with no credentials
+```
+
+## Limitations
+
+- Collaboration uses full-document messages and optimistic versions, not CRDT/OT merging. Simultaneous edits require a user decision; it is not Google Docs-style automatic merge.
+- Run **one API worker**: room membership is in memory. SQLite persists documents, not socket rooms. Multi-worker deployment needs shared pub/sub and coordinated presence.
+- Browser bearer tokens are in local storage. XSS prevention remains important; production cookie/session design deserves a separate review.
+- No password reset, email verification, abuse throttling, role-based read-only sharing, offline queue, or code execution.
+- Public hosting requires HTTPS/WSS, restricted origins, persistent storage/backups, resource limits, rate limiting, and operational monitoring. Passing tests is not a production security certification.
+- Refresh/closing a tab can discard unsaved changes; the editor warns where browsers permit it. Do not treat the browser as durable storage.
