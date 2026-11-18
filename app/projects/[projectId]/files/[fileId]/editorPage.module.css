@@ -150,4 +150,7 @@
 .backButton {
   background: #2563eb;
   color: white;
-}
+}.message { margin: 8px 20px; color: #f7768e; font-size: 13px; }
+.conflict { margin: 8px 20px; padding: 10px 12px; border: 1px solid #f1c40f; border-radius: 8px; background: #332b13; display: grid; gap: 8px; font-size: 13px; }
+.conflict div { display: flex; gap: 8px; }
+.retry { margin: 8px 20px; padding: 8px 12px; border: 1px solid #7aa2f7; border-radius: 8px; background: #17243a; display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; }

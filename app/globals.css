@@ -1,6 +1,8 @@
 @import "tailwindcss";
 
 :root {
+  --background: #0f1117;
+  --foreground: #e6edf3;
   --bg: #0f1117;
   --panel: #161b22;
   --border: #30363d;
@@ -247,3 +249,12 @@ body {
   font-size: 13px;
   text-align: center;
 }
+
+:root {
+  --font-geist-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-geist-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+button:disabled { cursor: not-allowed; opacity: 0.65; }
+.input-error, .notice-error { color: #f7768e; font-size: 13px; }
+.notice { color: #9aa0aa; font-size: 13px; }

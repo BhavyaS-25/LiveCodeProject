@@ -1,123 +1,299 @@
-from datetime import datetime, timedelta
-from jose import JWTError, jwt
-from passlib.context import CryptContext
-from fastapi.security import OAuth2PasswordBearer
-from typing import List, Optional
-from enum import IntEnum
-from models import FileSchema, RegisterRequest, LoginSchema, ProjectSchema
-from database import users, projects, files
-from fastapi import FastAPI, HTTPException, Depends
-from pydantic import BaseModel, Field
+"""CodeCollab API: authenticated projects, durable files, versioned collaboration."""
+import asyncio
+import hashlib
+import hmac
+import secrets
+import sqlite3
+import time
+from datetime import datetime, timedelta, timezone
 
-app = FastAPI()
-## JWT Encryption
-HIDDEN_KEY = "3e38b9db032be263014705de8645bc79"
+import jwt
+from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+
+from config import allowed_origins, signing_key
+from database import configured_path, connect, initialize
+from models import FileSchema, FileUpdate, ProjectSchema, RegisterRequest
+from ws import ConnectionManager
+
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
+TOKEN_MINUTES = 60
+bearer = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
-# Hashing password
-def hash_password(password: str):
-    return pwd_context.hash(password)
- 
-def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
 
-# JWT token creation
-def create_access_token(data: dict, expires_delta: timedelta | None = None):
-    to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, HIDDEN_KEY, algorithm=ALGORITHM)
+def hash_password(password):
+    salt = secrets.token_bytes(16)
+    digest = hashlib.scrypt(password.encode(), salt=salt, n=16384, r=8, p=1)
+    return f"scrypt${salt.hex()}${digest.hex()}"
 
-# Verify Token
-def get_current_user(token: str = oauth2_scheme):
+
+def verify_password(password, stored):
     try:
-        payload = jwt.decode(token, HIDDEN_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
-        if username is None or username not in users:
-            raise HTTPException(status_code=401, detail="Invalid authentication")
-        return username
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid authentication token")
-    
-@app.post('/auth/register')
-def register(payload: RegisterRequest):
-    if payload.username in users:
-        raise HTTPException(status_code = 400, detail="User already exists")
-    hashed = hash_password(payload.password)
-    users[payload.username] = hashed
-    return {"message" : "User Registration Sucessful"}   
-
-@app.post('/auth/login')
-def login(payload: LoginSchema):
-    if payload.username not in users:
-        raise HTTPException(status_code = 400, detail="Incorrect Login")
-    
-    hashed_pw = users[payload.username]
-    if not verify_password(payload.password, hashed_pw):
-        raise HTTPException(status_code=400, detail="Incorrect Login")
-    
-    access_token = create_access_token({"sub": payload.username})
-
-    return {"access token": access_token, "token_type": "bearer"}
-
-@app.get('/auth/me')
-def me(current_user: str = Depends(get_current_user)):
-    return {"user" : "example_user"}
-
-#############################
-
-@app.post('/projects')
-def projects(project: ProjectSchema):
-    projects[projects.id] = project
-    return {"message" : "Project Created", "project" : project}
+        algorithm, salt, expected = stored.split("$")
+        if algorithm != "scrypt":
+            return False
+        actual = hashlib.scrypt(password.encode(), salt=bytes.fromhex(salt), n=16384, r=8, p=1)
+        return hmac.compare_digest(actual, bytes.fromhex(expected))
+    except (ValueError, TypeError):
+        return False
 
 
-@app.get('/projects')
-def getProjects():
-    return list(projects.values())
+def create_app(database_path=None, secret_key=None):
+    key = secret_key or signing_key()
+    db_path = database_path or configured_path()
+    initialize(db_path)
+    app = FastAPI(title="CodeCollab API", version="0.2.0")
+    app.add_middleware(CORSMiddleware, allow_origins=allowed_origins(),
+                       allow_methods=["GET", "POST", "PUT", "DELETE"],
+                       allow_headers=["Authorization", "Content-Type"])
+    manager = ConnectionManager()
+    app.state.database_path = db_path
+    app.state.manager = manager
 
-@app.get('/projects/{id}')
-def getSpecificProjects(id: int):
-    if id not in projects:
-        raise HTTPException(status_code = 404, detail= "Not Found")
-    return projects[id]
-    
+    def get_db():
+        db = connect(db_path)
+        try:
+            yield db
+        finally:
+            db.close()
 
-@app.put('/projects/{id}')
-def updateProjects(id: int, project: ProjectSchema):
-    projects[id] = project
-    return {"message" : "Project Updated"} 
+    def issue_token(user):
+        now = datetime.now(timezone.utc)
+        token = jwt.encode({"sub": str(user["id"]), "iat": now,
+                            "exp": now + timedelta(minutes=TOKEN_MINUTES)}, key, algorithm=ALGORITHM)
+        return {"access_token": token, "token_type": "bearer"}
 
-@app.delete('/projects/{id}')
-def deleteProject(id: int):
-    projects.pop(id, None)
-    return {"message" : "Project Deleted"}
-    
-#############################
+    def authenticate(token, db):
+        try:
+            payload = jwt.decode(token, key, algorithms=[ALGORITHM],
+                                 options={"require": ["sub", "iat", "exp"]})
+            user_id = int(payload["sub"])
+            user = db.execute("SELECT id, username FROM users WHERE id = ?", (user_id,)).fetchone()
+            if user is not None:
+                return dict(user), payload["exp"]
+        except (jwt.PyJWTError, ValueError, TypeError):
+            pass
+        raise HTTPException(401, "Invalid or expired authentication", headers={"WWW-Authenticate": "Bearer"})
 
-@app.post('/files')
-def createFile(file : FileSchema):
-    files[file.id] = file
-    return {"message" : "File Created", "file" : file}
+    def current_user(token: str = Depends(bearer), db=Depends(get_db)):
+        return authenticate(token, db)[0]
 
-@app.get('/files/{id}')
-def getFile(id: int):
-    if id not in files:
-        raise HTTPException(status_code=404, detail="File not found") 
-    return files[id]
+    def accessible_project(db, project_id, user, owner_only=False):
+        project = db.execute("SELECT * FROM projects WHERE id = ?", (project_id,)).fetchone()
+        if project is None:
+            raise HTTPException(404, "Project not found")
+        if project["owner_id"] != user["id"]:
+            member = db.execute("SELECT 1 FROM project_members WHERE project_id = ? AND user_id = ?",
+                                (project_id, user["id"])).fetchone()
+            if member is None:
+                # Do not reveal whether someone else's project exists.
+                raise HTTPException(404, "Project not found")
+            if owner_only:
+                raise HTTPException(403, "Only the project owner can perform this operation")
+        return dict(project)
 
-@app.put('/files/{id}')
-def updateFile(id: int, file: FileSchema):
-    files[id] = file
-    return {"message" : "File Updated"}
+    def require_file(db, project_id, file_id):
+        item = db.execute("SELECT * FROM files WHERE id = ? AND project_id = ?", (file_id, project_id)).fetchone()
+        if item is None:
+            raise HTTPException(404, "File not found")
+        return dict(item)
 
-@app.delete('/files/{id}')
-def deleteFile(id: int):
-    files.pop(id, None)
-    return {"message" : "File Deleted."}
+    def update_file_content(db, project_id, file_id, content, version):
+        with db:
+            result = db.execute("UPDATE files SET content = ?, version = version + 1 WHERE id = ? AND project_id = ? AND version = ?",
+                                (content, file_id, project_id, version))
+            item = require_file(db, project_id, file_id)
+            if result.rowcount == 0:
+                raise HTTPException(409, {"message": "File changed; review the latest version before saving.",
+                                          "content": item["content"], "version": item["version"]})
+        return item
+
+    @app.get("/health")
+    def health():
+        return {"status": "ok"}
+
+    @app.post("/auth/register", status_code=201)
+    def register(payload: RegisterRequest, db=Depends(get_db)):
+        try:
+            with db:
+                cursor = db.execute("INSERT INTO users (username, hashed_password) VALUES (?, ?)",
+                                    (payload.username, hash_password(payload.password)))
+        except sqlite3.IntegrityError:
+            raise HTTPException(409, "Username is already registered")
+        return issue_token({"id": cursor.lastrowid})
+
+    @app.post("/auth/login")
+    def login(form: OAuth2PasswordRequestForm = Depends(), db=Depends(get_db)):
+        if len(form.password) > 128:
+            raise HTTPException(401, "Invalid username or password")
+        user = db.execute("SELECT * FROM users WHERE username = ?", (form.username,)).fetchone()
+        if user is None or not verify_password(form.password, user["hashed_password"]):
+            raise HTTPException(401, "Invalid username or password", headers={"WWW-Authenticate": "Bearer"})
+        return issue_token(user)
+
+    @app.get("/auth/me")
+    def me(user=Depends(current_user)):
+        return user
+
+    @app.get("/projects")
+    def list_projects(user=Depends(current_user), db=Depends(get_db)):
+        return [dict(row) for row in db.execute("""SELECT p.* FROM projects p
+            WHERE p.owner_id = ? OR EXISTS (SELECT 1 FROM project_members m WHERE m.project_id = p.id AND m.user_id = ?)
+            ORDER BY p.id""", (user["id"], user["id"]))]
+
+    @app.post("/projects", status_code=201)
+    def create_project(payload: ProjectSchema, user=Depends(current_user), db=Depends(get_db)):
+        with db:
+            cursor = db.execute("INSERT INTO projects (name, owner_id) VALUES (?, ?)", (payload.name, user["id"]))
+        return {"project": accessible_project(db, cursor.lastrowid, user)}
+
+    @app.get("/projects/{project_id}")
+    def get_project(project_id: int, user=Depends(current_user), db=Depends(get_db)):
+        return accessible_project(db, project_id, user)
+
+    @app.put("/projects/{project_id}")
+    def rename_project(project_id: int, payload: ProjectSchema, user=Depends(current_user), db=Depends(get_db)):
+        accessible_project(db, project_id, user, owner_only=True)
+        with db:
+            db.execute("UPDATE projects SET name = ? WHERE id = ?", (payload.name, project_id))
+        return accessible_project(db, project_id, user)
+
+    @app.delete("/projects/{project_id}")
+    def delete_project(project_id: int, user=Depends(current_user), db=Depends(get_db)):
+        accessible_project(db, project_id, user, owner_only=True)
+        with db:
+            db.execute("DELETE FROM projects WHERE id = ?", (project_id,))
+        return {"message": "Project deleted"}
+
+    @app.post("/projects/{project_id}/members")
+    def add_member(project_id: int, username: str, user=Depends(current_user), db=Depends(get_db)):
+        accessible_project(db, project_id, user, owner_only=True)
+        member = db.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
+        if member is None:
+            raise HTTPException(404, "User not found")
+        with db:
+            db.execute("INSERT OR IGNORE INTO project_members (project_id, user_id) VALUES (?, ?)", (project_id, member["id"]))
+        return {"message": "Project shared", "username": username}
+
+    @app.get("/projects/{project_id}/files")
+    def list_files(project_id: int, user=Depends(current_user), db=Depends(get_db)):
+        accessible_project(db, project_id, user)
+        return [dict(row) for row in db.execute("SELECT * FROM files WHERE project_id = ? ORDER BY id", (project_id,))]
+
+    @app.post("/projects/{project_id}/files", status_code=201)
+    def create_file(project_id: int, payload: FileSchema, user=Depends(current_user), db=Depends(get_db)):
+        accessible_project(db, project_id, user)
+        try:
+            with db:
+                cursor = db.execute("INSERT INTO files (project_id, name, content) VALUES (?, ?, ?)",
+                                    (project_id, payload.name, payload.content))
+        except sqlite3.IntegrityError:
+            raise HTTPException(409, "A file with that name already exists")
+        return require_file(db, project_id, cursor.lastrowid)
+
+    @app.get("/projects/{project_id}/files/{file_id}")
+    def get_file(project_id: int, file_id: int, user=Depends(current_user), db=Depends(get_db)):
+        accessible_project(db, project_id, user)
+        return require_file(db, project_id, file_id)
+
+    @app.put("/projects/{project_id}/files/{file_id}")
+    async def update_file(project_id: int, file_id: int, payload: FileUpdate, user=Depends(current_user), db=Depends(get_db)):
+        accessible_project(db, project_id, user)
+        require_file(db, project_id, file_id)
+        try:
+            # One transaction ensures an optional rename and content update succeed together.
+            with db:
+                if payload.content is not None:
+                    result = db.execute("UPDATE files SET content = ?, version = version + 1 WHERE id = ? AND project_id = ? AND version = ?",
+                                        (payload.content, file_id, project_id, payload.version))
+                    if result.rowcount == 0:
+                        latest = require_file(db, project_id, file_id)
+                        raise HTTPException(409, {"message": "File changed; reload before saving.", "content": latest["content"], "version": latest["version"]})
+                if payload.name is not None:
+                    db.execute("UPDATE files SET name = ? WHERE id = ? AND project_id = ?", (payload.name, file_id, project_id))
+        except sqlite3.IntegrityError:
+            raise HTTPException(409, "A file with that name already exists")
+        saved = require_file(db, project_id, file_id)
+        if payload.content is not None:
+            await manager.broadcast((project_id, file_id), {"type": "edit", "user": user["username"], "content": saved["content"], "version": saved["version"]})
+        return saved
+
+    @app.delete("/projects/{project_id}/files/{file_id}")
+    def delete_file(project_id: int, file_id: int, user=Depends(current_user), db=Depends(get_db)):
+        accessible_project(db, project_id, user)
+        require_file(db, project_id, file_id)
+        with db:
+            db.execute("DELETE FROM files WHERE id = ? AND project_id = ?", (file_id, project_id))
+        return {"message": "File deleted"}
+
+    @app.websocket("/ws/{project_id}/files/{file_id}")
+    async def collaborate(socket: WebSocket, project_id: int, file_id: int):
+        origin = socket.headers.get("origin")
+        if origin is not None and origin not in allowed_origins():
+            await socket.close(code=1008)
+            return
+        await socket.accept()
+        room_key = (project_id, file_id)
+        joined = False
+        db = connect(db_path)
+        try:
+            # Authenticate in the first frame rather than leaking bearer tokens in URLs/logs.
+            auth = await asyncio.wait_for(socket.receive_json(), timeout=5)
+            if not isinstance(auth, dict) or auth.get("type") != "auth" or not isinstance(auth.get("token"), str):
+                await socket.close(code=1008)
+                return
+            user, expires = authenticate(auth["token"], db)
+            accessible_project(db, project_id, user)
+            item = require_file(db, project_id, file_id)
+            manager.connect(room_key, socket, user["username"])
+            joined = True
+            await socket.send_json({"type": "auth_ok", "user": user["username"], "content": item["content"], "version": item["version"]})
+            await manager.presence(room_key)
+            while True:
+                remaining = expires - time.time()
+                if remaining <= 0:
+                    await socket.close(code=1008)
+                    break
+                message = await asyncio.wait_for(socket.receive_json(), timeout=remaining)
+                accessible_project(db, project_id, user)
+                if not isinstance(message, dict):
+                    await socket.send_json({"type": "error", "message": "Expected an object"})
+                    continue
+                if message.get("type") == "edit":
+                    content, version = message.get("content"), message.get("version")
+                    if not isinstance(content, str) or len(content) > 200_000 or type(version) is not int or version < 0:
+                        await socket.send_json({"type": "error", "message": "Provide content (up to 200000 characters) and a nonnegative integer version"})
+                        continue
+                    try:
+                        item = update_file_content(db, project_id, file_id, content, version)
+                    except HTTPException as exc:
+                        if exc.status_code != 409:
+                            raise
+                        await socket.send_json({"type": "conflict", **exc.detail})
+                        continue
+                    await socket.send_json({"type": "saved", "version": item["version"], "content": item["content"]})
+                    await manager.broadcast(room_key, {"type": "edit", "user": user["username"], "content": item["content"], "version": item["version"]}, exclude=socket)
+                elif message.get("type") == "cursor":
+                    position = message.get("position")
+                    if type(position) is int and 0 <= position <= 200_000:
+                        await manager.broadcast(room_key, {"type": "cursor", "user": user["username"], "position": position}, exclude=socket)
+                else:
+                    await socket.send_json({"type": "error", "message": "Unknown message type"})
+        except (WebSocketDisconnect, RuntimeError):
+            pass
+        except (HTTPException, asyncio.TimeoutError, ValueError):
+            try:
+                await socket.close(code=1008)
+            except RuntimeError:
+                pass
+        finally:
+            db.close()
+            if joined:
+                manager.disconnect(room_key, socket)
+                await manager.presence(room_key)
+
+    return app
 
 
-
+app = create_app()

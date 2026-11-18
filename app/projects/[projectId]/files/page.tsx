@@ -2,268 +2,80 @@
 
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import styles from "./filesPage.module.css"; 
 import { useRouter } from "next/navigation";
+import styles from "./filesPage.module.css";
+import { ApiError, apiRequest, getToken, isValidName } from "../../../../lib/api";
 
-type File = {
-  id: number;
-  name: string;
-};
+type Project = { id: number; name: string };
+type ProjectFile = { id: number; name: string; content?: string; version?: number };
 
+function languageFor(filename: string) {
+  const extension = filename.split(".").pop()?.toLowerCase();
+  return ({ js: "JavaScript", ts: "TypeScript", py: "Python", java: "Java", json: "JSON", html: "HTML", css: "CSS", md: "Markdown" } as Record<string, string>)[extension ?? ""] ?? "Plain Text";
+}
 
-export default function FilesPage({
-  params,
-}: {
-  params: Promise<{ projectId: string }>;
-}) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const [projectName, setProjectName] = useState<string>("");
+export default function FilesPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = use(params);
-  const [files, setFiles] = useState<File[]>([]);
+  const router = useRouter();
+  const [projectName, setProjectName] = useState("Project");
+  const [files, setFiles] = useState<ProjectFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [newFileName, setNewFileName] = useState("");
+  const [creating, setCreating] = useState(false);
   const [editingFileId, setEditingFileId] = useState<number | null>(null);
   const [editingName, setEditingName] = useState("");
- 
+  const [savingRename, setSavingRename] = useState(false);
 
-  function getLanguageFromFilename(filename: string) {
-    const ext = filename.split(".").pop()?.toLowerCase();
-
-    switch (ext) {
-      case "js":
-        return "JavaScript";
-      case "ts":
-        return "TypeScript";
-      case "py":
-        return "Python";
-      case "java":
-        return "Java";
-      case "json":
-        return "JSON";
-      case "html":
-        return "HTML";
-      case "css":
-        return "CSS";
-      case "md":
-        return "Markdown";
-      default:
-        return "Plain Text";
-    }
-}
+  function reportError(err: unknown) {
+    if (err instanceof ApiError && err.status === 401) { router.replace("/login"); return; }
+    setError(err instanceof Error ? err.message : "Something went wrong.");
+  }
 
   useEffect(() => {
-    
-    const token = localStorage.getItem("token");
-    if (!token) {
-      window.location.href = "/login";
-      return;
-    }
-    fetch(`http://localhost:8000/projects/${projectId}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-      .then((res) => {
-      if (!res.ok) throw new Error("Failed to fetch project");
-        return res.json();
-    })
-      .then((data) => {
-        setProjectName(data.name);
-    })
-      .catch((err) => {
-        console.error(err);
-    });
+    if (!getToken()) { router.replace("/login"); return; }
+    let cancelled = false;
+    Promise.all([apiRequest<ProjectFile[]>(`/projects/${projectId}/files`), apiRequest<Project[]>("/projects")])
+      .then(([fileData, projectData]) => { if (!cancelled) { setFiles(fileData); setProjectName(projectData.find((project) => String(project.id) === projectId)?.name ?? "Project"); } })
+      .catch((err) => { if (!cancelled) reportError(err); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  // reportError intentionally uses the stable route for this page
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, router]);
 
-    fetch(`http://localhost:8000/projects/${projectId}/files`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to fetch files");
-        return res.json();
-      })
-      .then((data) => {
-        setFiles(data);
-      })
-      .catch((err) => {
-        setError(err.message);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  }, [projectId]);
-  
-  const createFile = async () => {
-    if (!newFileName.trim()) return;
-
-    const token = localStorage.getItem("token");
-    if (!token) return;
-
-    const res = await fetch(
-      `http://localhost:8000/projects/${projectId}/files`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          name: newFileName,
-          content: "",
-        }),
-      }
-    );
-
-    if (!res.ok) {
-      alert("Failed to create file");
-      return;
-    }
-
-    const newFile = await res.json();
-    setFiles((prev) => [...prev, newFile]);
-    setNewFileName("");
-  };
-  async function deleteFile(fileId: number) {
-    const confirmed = confirm("Do you want to delete this file?")
-    if (!confirmed) {
-      return;
-    }
-    const token = localStorage.getItem("token");
-    const res = await fetch(
-      `http://localhost:8000/projects/${projectId}/files/${fileId}`,
-      {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        }
-      }
-    );
-    const text = await res.text();
-
-    console.log("DELETE status:", res.status);
-    console.log("DELETE response:", text);
-
-    if (!res.ok) {
-      alert("Failed to delete this file");
-      return;
-    }
-    setFiles((prev) => prev.filter((f) => f.id !== fileId));
+  async function createFile() {
+    const name = newFileName.trim();
+    if (!isValidName(name, "file")) { setError("File names must be 1-120 characters and cannot include slashes."); return; }
+    setCreating(true); setError(null);
+    try {
+      const result = await apiRequest<ProjectFile>(`/projects/${projectId}/files`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, content: "" }) });
+      setFiles((previous) => [...previous, result]); setNewFileName("");
+    } catch (err) { reportError(err); } finally { setCreating(false); }
   }
 
   async function renameFile(fileId: number) {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      return;
-    }
-    const res = await fetch (
-       `http://localhost:8000/projects/${projectId}/files/${fileId}`,
-      {
-        method: "PUT",
-        headers: {
-          "Content-Type" : "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          name: editingName,
-        }),
-      }
-    );
-    if (!res.ok) {
-      alert("Failed to rename file");
-      return;
-    }
-    const updated = await res.json();
-    setFiles((prev) => prev.map((f) => (f.id === fileId ? updated : f)));
-    setEditingFileId(null);
-    setEditingName("");
-  }
-  if (loading) {
-    return <p style={{ padding: 40 }}>Loading files...</p>;
+    const name = editingName.trim();
+    if (!isValidName(name, "file")) { setError("File names must be 1-120 characters and cannot include slashes."); return; }
+    setSavingRename(true); setError(null);
+    try {
+      const updated = await apiRequest<ProjectFile>(`/projects/${projectId}/files/${fileId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) });
+      setFiles((previous) => previous.map((file) => file.id === fileId ? { ...file, ...updated } : file));
+      setEditingFileId(null);
+    } catch (err) { reportError(err); } finally { setSavingRename(false); }
   }
 
-  if (error) {
-    return (
-      <div style={{ padding: 40 }}>
-        <p style={{ color: "red" }}>{error}</p>
-      </div>
-    );
+  async function deleteFile(fileId: number) {
+    if (!window.confirm("Delete this file?")) return;
+    setError(null);
+    try { await apiRequest<void>(`/projects/${projectId}/files/${fileId}`, { method: "DELETE" }); setFiles((previous) => previous.filter((file) => file.id !== fileId)); }
+    catch (err) { reportError(err); }
   }
 
-  return (
-    <div className = {styles.page}>
-      <div className = {styles.container}>
-        <h1 className= {styles.title}>{projectName || "Project"}</h1>
-        <p className= {styles.subtitle}>
-        Files in this project
-        </p>
-
-
-
-      <div className = {styles.createRow}> 
-        <input
-          className = {styles.input}
-          placeholder = "New file name"
-          value = {newFileName}
-          onChange = {(e) => setNewFileName(e.target.value)}
-
-        />
-        <button 
-            className = {styles.primaryButton}
-            onClick={createFile}>
-          Create
-        </button>
-        <button 
-        className= {styles.backButton}
-        onClick={() => router.back()}>
-          ← Back
-        </button>
-
-      </div>
-
-      {files.length === 0 && <p>No files yet.</p>}
-
-      <ul>
-        {files.map((file) => (
-          <li key={file.id} className={styles.fileItem}>
-            <div className={styles.fileMeta}>
-              <Link
-                href={`/projects/${projectId}/files/${file.id}`}
-                className={styles.fileLink}
-              >
-                {file.name}
-              </Link>
-
-              <span className={styles.badge}>
-                {getLanguageFromFilename(file.name)}
-              </span>
-            </div>
-
-            <div className={styles.actions}>
-              <button
-                onClick={() => {
-                  setEditingFileId(file.id);
-                  setEditingName(file.name);
-                }}
-              >
-                Rename
-              </button>
-
-              <button
-                className={styles.danger}
-                onClick={() => deleteFile(file.id)}
-              >
-                Delete
-              </button>
-            </div>
-          </li>
-
-        ))}
-      </ul>
-    </div>
-  </div>
-  );
+  if (loading) return <p style={{ padding: 40 }}>Loading files...</p>;
+  return <div className={styles.page}><div className={styles.container}><h1 className={styles.title}>{projectName}</h1><p className={styles.subtitle}>Files in this project</p>
+    {error && <p className="notice-error" role="alert">{error}</p>}
+    <div className={styles.createRow}><input className={styles.input} aria-label="New file name" placeholder="New file name" value={newFileName} onChange={(e) => setNewFileName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void createFile(); }} disabled={creating} /><button className={styles.primaryButton} onClick={() => void createFile()} disabled={creating}>{creating ? "Creating..." : "Create"}</button><button className={styles.backButton} onClick={() => router.push("/projects")}>Back</button></div>
+    {!files.length ? <p>No files yet.</p> : <ul>{files.map((file) => <li key={file.id} className={styles.fileItem}><div className={styles.fileMeta}>{editingFileId === file.id ? <input aria-label="File name" value={editingName} onChange={(e) => setEditingName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void renameFile(file.id); if (e.key === "Escape") setEditingFileId(null); }} autoFocus /> : <><Link href={`/projects/${projectId}/files/${file.id}`} className={styles.fileLink}>{file.name}</Link><span className={styles.badge}>{languageFor(file.name)}</span></>}</div><div className={styles.actions}>{editingFileId === file.id ? <><button onClick={() => void renameFile(file.id)} disabled={savingRename}>Save</button><button onClick={() => setEditingFileId(null)} disabled={savingRename}>Cancel</button></> : <button onClick={() => { setEditingFileId(file.id); setEditingName(file.name); }}>Rename</button>}<button className={styles.danger} onClick={() => void deleteFile(file.id)}>Delete</button></div></li>)}</ul>}
+  </div></div>;
 }
